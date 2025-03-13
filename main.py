@@ -37,19 +37,16 @@ def str2bool(v):
 
 
 def preprocess_data(args):
-    """Preprocess RFMiD dataset: Extracts and structures dataset before training."""
     base_dir = args.data_path
     output_dir = os.path.join(base_dir, "processed/RFMiD")
     preprocess_rfmid(base_dir, output_dir)
 
-    # Set correct dataset paths
     args.data_path = "/mnt/projects/zhuangyo_project/processed/RFMiD/all_classes"
     args.train_images = os.path.join(args.data_path, "1. Original Images", "a. Training Set")
     args.val_images = os.path.join(args.data_path, "1. Original Images", "b. Validation Set")
     args.train_labels = os.path.join(args.data_path, "2. Groundtruths", "training_labels.csv")
     args.val_labels = os.path.join(args.data_path, "2. Groundtruths", "validation_labels.csv")
 
-    # Debugging prints
     print(f"DEBUG: Train Images Path -> {args.train_images}")
     print(f"DEBUG: Train Labels Path -> {args.train_labels}")
     print(f"Training images directory: {args.train_images}")
@@ -57,7 +54,6 @@ def preprocess_data(args):
     print(f"Training labels file: {args.train_labels}")
     print(f"Validation labels file: {args.val_labels}")
 
-    # Ensure paths exist
     assert os.path.exists(args.train_images), f" Error: Training images not found at {args.train_images}"
     assert os.path.exists(args.val_images), f" Error: Validation images not found at {args.val_images}"
     assert os.path.exists(args.train_labels), f" Error: Training labels not found at {args.train_labels}"
@@ -69,16 +65,14 @@ def main(args):
     utils.init_distributed_mode(args)
     print(args)
 
-    # Ensure update_freq is set
     if not hasattr(args, "update_freq") or args.update_freq is None:
-        args.update_freq = 1  # Default value to prevent division errors
+        args.update_freq = 1  
 
     device = torch.device(args.device)
 
 
 
 
-    # Fix the seed for reproducibility
     seed = args.seed + utils.get_rank()
     torch.manual_seed(seed)
     np.random.seed(seed)
@@ -116,7 +110,7 @@ def main(args):
 
     if args.dist_eval:
         if dataset_val and len(dataset_val) % num_tasks != 0:
-            print("⚠️ Warning: Distributed evaluation dataset not divisible by process count!")
+            print("Distributed evaluation dataset not divisible by process count!")
         sampler_val = torch.utils.data.DistributedSampler(dataset_val, num_replicas=num_tasks, rank=global_rank, shuffle=False)
     else:
         sampler_val = torch.utils.data.SequentialSampler(dataset_val)
@@ -127,7 +121,6 @@ def main(args):
     log_writer = utils.TensorboardLogger(log_dir=args.log_dir) if global_rank == 0 and args.log_dir else None
     wandb_logger = utils.WandbLogger(args) if global_rank == 0 and args.enable_wandb else None
 
-    # ✅ **Ensure DataLoader is included**
     data_loader_train = torch.utils.data.DataLoader(
         dataset_train, sampler=sampler_train,
         batch_size=args.batch_size, num_workers=args.num_workers,
@@ -166,13 +159,11 @@ def main(args):
     model.to(device)
     model_without_ddp = model
 
-    # ✅ **Correctly handle DistributedDataParallel (DDP)**
     if args.distributed:
         print(f"Using DistributedDataParallel (GPU {args.gpu})")
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu], find_unused_parameters=False)
         model_without_ddp = model.module  
 
-    # ✅ **EMA**
     model_ema = None
     if args.model_ema:
         model_ema = ModelEma(model, decay=args.model_ema_decay, device='cpu' if args.model_ema_force_cpu else '', resume='')
@@ -278,7 +269,6 @@ if __name__ == "__main__":
     parser.add_argument('--model_ema_decay', type=float, default=0.9999, help='')
     parser.add_argument('--model_ema_force_cpu', type=str2bool, default=False, help='')
     parser.add_argument('--model_ema_eval', type=str2bool, default=True, help='Using ema to eval during training.')
-    # * Mixup params
     parser.add_argument('--mixup', type=float, default=0.8,
                         help='mixup alpha, mixup enabled if > 0.')
     parser.add_argument('--cutmix', type=float, default=1.0,
@@ -309,7 +299,6 @@ if __name__ == "__main__":
         weight decay. We use a cosine schedule for WD and using a larger decay by
         the end of training improves performance for ViTs.""")
 
-# Weights and Biases arguments
     parser.add_argument('--enable_wandb', type=str2bool, default=False,
                         help="enable logging to Weights and Biases")
     parser.add_argument('--project', default='convnext', type=str,
